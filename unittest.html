@@ -1,0 +1,75 @@
+<html>
+  <head>
+    <style>
+        ul {
+            list-style-type: none;
+        }
+    </style>
+  </head>
+  <body>
+    <ul>
+        <h3>
+        what to think about when writing unit tests
+        </h3>
+          <li>
+        - What's your input?
+        <ul>
+          <li>
+            - What will happen if any of the parameters:
+            <ul>
+              <li>- Is null</li>
+              <li>- Is mismatch</li>
+              <li>- Of different type</li>
+              <li>- Of invalid size (length)</li>
+            </ul>
+          </li>
+        </ul>
+      </li>
+      <li>
+        - What's your logic?
+        <ul>
+          <li>- Can some other code modify your input?</li>
+          <li>- Which other code waits for your output?</li>
+          <li>- What will happen if you output null?</li>
+          <li>
+            - What will happen if your code doesn't provide its output on time?
+          </li>
+          <li>- Does your logic have all possible outputs defined?</li>
+          <li>- Are all branches still relevant?</li>
+        </ul>
+      </li>
+      <li>
+        - Do you interact with data?
+        <ul>
+          <li>
+            - Do you CRUD data?
+            <ul>
+              <li>- What will happen if you lose rights to CRUD?</li>
+              <li>
+                -What will happen if the data is missing?
+                <ul>
+                  <li>
+                    - Can you distinguish between no access and no or corrupted
+                    data?
+                  </li>
+                </ul>
+              </li>
+            </ul>
+          </li>
+        </ul>
+      </li>
+      <li>
+        - Do you loop?
+        <ul>
+          <li>- Are you sure you'll always exit the loop</li>
+          <li>- Are you sure you need to loop?</li>
+          <li>- Do you exit quickly on error?</li>
+          <li>- Do you not enter the loop if it's not necessary?</li>
+        </ul>
+      </li>
+      <li>
+        - Does the control flow runs smoothly or you make unnecessary calls?
+      </li>
+    </ul>
+  </body>
+</html>
