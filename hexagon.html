@@ -19,6 +19,9 @@
         h2 {
             color: #34495e;
         }
+        h3 {
+            color: #5d6d7e;
+        }
         pre {
             background-color: #f4f4f4;
             border: 1px solid #ddd;
@@ -42,9 +45,10 @@
 
     <pre><code>data class User(val id: UUID, val name: String, val email: String)
 
-class UserService(private val userRepository: UserRepository) {
+class UserService(private val userRepository: UserRepository, private val externalUserService: ExternalUserService) {
     fun createUser(name: String, email: String): User {
         val user = User(UUID.randomUUID(), name, email)
+        externalUserService.notifyUserCreation(user)
         return userRepository.save(user)
     }
 }</code></pre>
@@ -60,6 +64,10 @@ class UserService(private val userRepository: UserRepository) {
 
 interface UserUseCase {
     fun createUser(name: String, email: String): User
+}
+
+interface ExternalUserService {
+    fun notifyUserCreation(user: User)
 }</code></pre>
 
     <h2>3. Adaptere</h2>
@@ -98,6 +106,32 @@ class JooqUserRepository(private val dslContext: DSLContext) : UserRepository {
     }
 }</code></pre>
 
+    <h3>Utgående adapter (WebClient for ekstern tjeneste)</h3>
+
+    <pre><code>@Service
+class WebClientExternalUserService(private val webClient: WebClient) : ExternalUserService {
+    override fun notifyUserCreation(user: User) {
+        webClient.post()
+            .uri("/external-service/user-notifications")
+            .bodyValue(UserNotification(user.id, user.email))
+            .retrieve()
+            .bodyToMono<Void>()
+            .block()
+    }
+}
+
+data class UserNotification(val userId: UUID, val email: String)
+
+@Configuration
+class WebClientConfig {
+    @Bean
+    fun webClient(): WebClient {
+        return WebClient.builder()
+            .baseUrl("https://external-service-url.com")
+            .build()
+    }
+}</code></pre>
+
     <h2>4. Konfigurasjon</h2>
 
     <p>Bruk Spring Boot for dependency injection og konfigurering.</p>
@@ -105,18 +139,18 @@ class JooqUserRepository(private val dslContext: DSLContext) : UserRepository {
     <pre><code>@Configuration
 class AppConfig {
     @Bean
-    fun userUseCase(userRepository: UserRepository): UserUseCase {
-        return UserService(userRepository)
+    fun userUseCase(userRepository: UserRepository, externalUserService: ExternalUserService): UserUseCase {
+        return UserService(userRepository, externalUserService)
     }
 }</code></pre>
 
     <p>Denne arkitekturen gir flere fordeler:</p>
     <ul>
         <li>Domenelogikken er isolert og lett å teste</li>
-        <li>Enkelt å bytte ut eksterne systemer (f.eks. bytte database eller API-lag)</li>
+        <li>Enkelt å bytte ut eksterne systemer (f.eks. bytte database, API-lag eller ekstern tjeneste)</li>
         <li>Klar separasjon av ansvarsområder</li>
     </ul>
 
-    <p>Ved å følge denne strukturen, kan du bygge robuste og fleksible applikasjoner med Spring Boot, Kotlin og jOOQ.</p>
+    <p>Ved å følge denne strukturen, kan du bygge robuste og fleksible applikasjoner med Spring Boot, Kotlin og jOOQ, samt integrere med eksterne tjenester ved hjelp av WebClient.</p>
 </body>
 </html>
