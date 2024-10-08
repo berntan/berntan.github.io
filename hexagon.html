@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hexagonal Arkitektur med Spring Boot, Kotlin og jOOQ</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h1 {
+            color: #2c3e50;
+        }
+        h2 {
+            color: #34495e;
+        }
+        pre {
+            background-color: #f4f4f4;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 10px;
+            overflow-x: auto;
+        }
+        code {
+            font-family: 'Courier New', Courier, monospace;
+        }
+    </style>
+</head>
+<body>
+    <h1>Hexagonal Arkitektur med Spring Boot, Kotlin og jOOQ</h1>
+
+    <p>Hexagonal arkitektur, også kjent som Ports and Adapters, er et designmønster som separerer kjernelogikken (domenet) fra eksterne systemer. Her er en oversikt over hvordan du kan implementere dette i en Spring Boot-applikasjon med Kotlin og jOOQ.</p>
+
+    <h2>1. Domenelag</h2>
+
+    <p>Domenet inneholder forretningslogikk og er uavhengig av eksterne systemer.</p>
+
+    <pre><code>data class User(val id: UUID, val name: String, val email: String)
+
+class UserService(private val userRepository: UserRepository) {
+    fun createUser(name: String, email: String): User {
+        val user = User(UUID.randomUUID(), name, email)
+        return userRepository.save(user)
+    }
+}</code></pre>
+
+    <h2>2. Porter (Interfaces)</h2>
+
+    <p>Porter definerer hvordan domenet kommuniserer med omverdenen.</p>
+
+    <pre><code>interface UserRepository {
+    fun save(user: User): User
+    fun findById(id: UUID): User?
+}
+
+interface UserUseCase {
+    fun createUser(name: String, email: String): User
+}</code></pre>
+
+    <h2>3. Adaptere</h2>
+
+    <p>Adaptere implementerer portene og håndterer kommunikasjon med eksterne systemer.</p>
+
+    <h3>Inngående adapter (REST Controller)</h3>
+
+    <pre><code>@RestController
+@RequestMapping("/users")
+class UserController(private val userUseCase: UserUseCase) {
+    @PostMapping
+    fun createUser(@RequestBody request: CreateUserRequest): ResponseEntity<User> {
+        val user = userUseCase.createUser(request.name, request.email)
+        return ResponseEntity.ok(user)
+    }
+}</code></pre>
+
+    <h3>Utgående adapter (jOOQ Repository)</h3>
+
+    <pre><code>@Repository
+class JooqUserRepository(private val dslContext: DSLContext) : UserRepository {
+    override fun save(user: User): User {
+        dslContext.insertInto(USERS)
+            .set(USERS.ID, user.id)
+            .set(USERS.NAME, user.name)
+            .set(USERS.EMAIL, user.email)
+            .execute()
+        return user
+    }
+
+    override fun findById(id: UUID): User? {
+        return dslContext.selectFrom(USERS)
+            .where(USERS.ID.eq(id))
+            .fetchOneInto(User::class.java)
+    }
+}</code></pre>
+
+    <h2>4. Konfigurasjon</h2>
+
+    <p>Bruk Spring Boot for dependency injection og konfigurering.</p>
+
+    <pre><code>@Configuration
+class AppConfig {
+    @Bean
+    fun userUseCase(userRepository: UserRepository): UserUseCase {
+        return UserService(userRepository)
+    }
+}</code></pre>
+
+    <p>Denne arkitekturen gir flere fordeler:</p>
+    <ul>
+        <li>Domenelogikken er isolert og lett å teste</li>
+        <li>Enkelt å bytte ut eksterne systemer (f.eks. bytte database eller API-lag)</li>
+        <li>Klar separasjon av ansvarsområder</li>
+    </ul>
+
+    <p>Ved å følge denne strukturen, kan du bygge robuste og fleksible applikasjoner med Spring Boot, Kotlin og jOOQ.</p>
+</body>
+</html>
