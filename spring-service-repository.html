@@ -183,20 +183,20 @@ class UserService(private val userRepository: UserRepository) {
 }
     </code></pre>
 
-    <h2>Forklaring av Endringer</h2>
+    <h2>Forklaringer</h2>
 
     <h3>Repository-laget:</h3>
     <ul>
-        <li>Returnerer nå synkrone resultater (List&lt;User&gt;, User?, User) i stedet for Flux eller Mono.</li>
-        <li>Fjernet all bruk av Mono.fromCallable og subscribeOn, da dette nå håndteres i Service-laget.</li>
+        <li>Bruker jOOQ for å utføre databaseoperasjoner.</li>
+        <li>Returnerer synkrone resultater (List&lt;User&gt;, User?, User) i stedet for Flux eller Mono.</li>
     </ul>
 
     <h3>Service-laget:</h3>
     <ul>
-        <li>Bruker nå Mono.fromCallable for å konvertere synkrone repository-kall til reaktive typer.</li>
+        <li>Bruker Mono.fromCallable for å konvertere synkrone repository-kall til reaktive typer.</li>
         <li>Implementerer subscribeOn(Schedulers.boundedElastic()) for hver databaseoperasjon.</li>
-        <li>Beholder ansvaret for transaksjonshåndtering og isolasjonsnivåer.</li>
-        <li>Håndterer fortsatt forretningslogikk og domeneregler.</li>
+        <li>Har ansvaret for transaksjonshåndtering og isolasjonsnivåer.</li>
+        <li>Håndterer forretningslogikk og domeneregler.</li>
     </ul>
 
     <h2>Fordeler med denne Tilnærmingen</h2>
