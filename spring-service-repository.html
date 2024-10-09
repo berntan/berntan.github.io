@@ -6,8 +6,8 @@
     <title>Separasjon av Service og Repository i Spring Boot med jOOQ og Flux/Mono</title>
     <style>
         body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 800px; margin: 0 auto; padding: 20px; }
-        h1, h2 { color: #2c3e50; }
-        code { background-color: #f4f4f4; border: 1px solid #ddd; border-radius: 3px; font-family: Consolas, monospace; padding: 2px 4px; }
+        h1, h2, h3 { color: #2c3e50; }
+        code { background-color: #f4f4f4; border-radius: 3px; font-family: Consolas, monospace; padding: 2px 4px; }
         pre { background-color: #f4f4f4; border: 1px solid #ddd; border-radius: 3px; padding: 10px; overflow-x: auto; }
         .note { background-color: #e7f3fe; border-left: 6px solid #2196F3; padding: 10px; margin-bottom: 15px; }
     </style>
@@ -16,12 +16,12 @@
     <h1>Separasjon av Service og Repository i Spring Boot med jOOQ og Flux/Mono</h1>
     
     <h2>Introduksjon</h2>
-    <p>I Spring Boot-applikasjoner er det god praksis å skille mellom Service- og Repository-lag for å oppnå en ren og vedlikeholdbar arkitektur. Dette notatet demonstrerer hvordan man kan implementere denne separasjonen i en reaktiv kontekst, ved bruk av jOOQ for databaseoperasjoner og Flux/Mono for reaktiv datastrøm, samt inkludere komplekse domeneregler i Service-laget.</p>
+    <p>Dette notatet demonstrerer en oppdatert tilnærming til separasjon av Service- og Repository-lag i en Spring Boot-applikasjon, med fokus på å flytte ansvaret for reaktiv håndtering og schedulering til Service-laget.</p>
 
     <h2>Struktur</h2>
     <ol>
-        <li><strong>Repository:</strong> Håndterer direkte dataaksess ved hjelp av jOOQ.</li>
-        <li><strong>Service:</strong> Inneholder forretningslogikk og domeneregler, og bruker Repository for dataoperasjoner.</li>
+        <li><strong>Repository:</strong> Håndterer direkte dataaksess ved hjelp av jOOQ, returnerer synkrone resultater.</li>
+        <li><strong>Service:</strong> Konverterer synkrone repository-kall til reaktive typer, håndterer schedulering, transaksjoner og forretningslogikk.</li>
         <li><strong>Modell:</strong> Representerer datastrukturer og domeneentiteter.</li>
     </ol>
 
@@ -45,68 +45,57 @@ data class User(
     <pre><code>
 import org.jooq.DSLContext
 import org.springframework.stereotype.Repository
-import reactor.core.publisher.Flux
-import reactor.core.publisher.Mono
-import reactor.core.scheduler.Schedulers
 
 @Repository
 class UserRepository(private val dsl: DSLContext) {
 
-    fun findAllUsers(): Flux&lt;User&gt; {
-        return Flux.defer {
-            Flux.fromIterable(
-                dsl.select(USERS.ID, USERS.NAME, USERS.EMAIL, USERS.IS_ADMIN, USERS.IS_ACTIVE, 
-                           USERS.REGISTRATION_DATE, USERS.LAST_EMAIL_CHANGE_DATE, USERS.DEACTIVATION_DATE)
-                   .from(USERS)
-                   .fetch()
-                   .map { r -> User(
-                       r[USERS.ID], r[USERS.NAME], r[USERS.EMAIL], r[USERS.IS_ADMIN], r[USERS.IS_ACTIVE],
-                       r[USERS.REGISTRATION_DATE], r[USERS.LAST_EMAIL_CHANGE_DATE], r[USERS.DEACTIVATION_DATE]
-                   ) }
-            )
-        }.subscribeOn(Schedulers.boundedElastic())
+    fun findAllUsers(): List&lt;User&gt; {
+        return dsl.select(USERS.ID, USERS.NAME, USERS.EMAIL, USERS.IS_ADMIN, USERS.IS_ACTIVE, 
+                          USERS.REGISTRATION_DATE, USERS.LAST_EMAIL_CHANGE_DATE, USERS.DEACTIVATION_DATE)
+                  .from(USERS)
+                  .fetch()
+                  .map { r -> User(
+                      r[USERS.ID], r[USERS.NAME], r[USERS.EMAIL], r[USERS.IS_ADMIN], r[USERS.IS_ACTIVE],
+                      r[USERS.REGISTRATION_DATE], r[USERS.LAST_EMAIL_CHANGE_DATE], r[USERS.DEACTIVATION_DATE]
+                  ) }
     }
 
-    fun findUserById(id: Int): Mono&lt;User&gt; {
-        return Mono.fromCallable {
-            dsl.select(USERS.ID, USERS.NAME, USERS.EMAIL, USERS.IS_ADMIN, USERS.IS_ACTIVE, 
-                       USERS.REGISTRATION_DATE, USERS.LAST_EMAIL_CHANGE_DATE, USERS.DEACTIVATION_DATE)
-               .from(USERS)
-               .where(USERS.ID.eq(id))
-               .fetchOne()
-               ?.let { r -> User(
-                   r[USERS.ID], r[USERS.NAME], r[USERS.EMAIL], r[USERS.IS_ADMIN], r[USERS.IS_ACTIVE],
-                   r[USERS.REGISTRATION_DATE], r[USERS.LAST_EMAIL_CHANGE_DATE], r[USERS.DEACTIVATION_DATE]
-               ) }
-        }.subscribeOn(Schedulers.boundedElastic())
+    fun findUserById(id: Int): User? {
+        return dsl.select(USERS.ID, USERS.NAME, USERS.EMAIL, USERS.IS_ADMIN, USERS.IS_ACTIVE, 
+                          USERS.REGISTRATION_DATE, USERS.LAST_EMAIL_CHANGE_DATE, USERS.DEACTIVATION_DATE)
+                  .from(USERS)
+                  .where(USERS.ID.eq(id))
+                  .fetchOne()
+                  ?.let { r -> User(
+                      r[USERS.ID], r[USERS.NAME], r[USERS.EMAIL], r[USERS.IS_ADMIN], r[USERS.IS_ACTIVE],
+                      r[USERS.REGISTRATION_DATE], r[USERS.LAST_EMAIL_CHANGE_DATE], r[USERS.DEACTIVATION_DATE]
+                  ) }
     }
 
-    fun saveUser(user: User): Mono&lt;User&gt; {
-        return Mono.fromCallable {
-            dsl.insertInto(USERS, USERS.NAME, USERS.EMAIL, USERS.IS_ADMIN, USERS.IS_ACTIVE, 
-                           USERS.REGISTRATION_DATE, USERS.LAST_EMAIL_CHANGE_DATE, USERS.DEACTIVATION_DATE)
-               .values(user.name, user.email, user.isAdmin, user.isActive, 
-                       user.registrationDate, user.lastEmailChangeDate, user.deactivationDate)
-               .returningResult(USERS.ID)
-               .fetchOne()
-               ?.let { r -> user.copy(id = r[USERS.ID]) }
-               ?: throw RuntimeException("Failed to insert user")
-        }.subscribeOn(Schedulers.boundedElastic())
+    fun saveUser(user: User): User {
+        val result = dsl.insertInto(USERS, USERS.NAME, USERS.EMAIL, USERS.IS_ADMIN, USERS.IS_ACTIVE, 
+                                    USERS.REGISTRATION_DATE, USERS.LAST_EMAIL_CHANGE_DATE, USERS.DEACTIVATION_DATE)
+                        .values(user.name, user.email, user.isAdmin, user.isActive, 
+                                user.registrationDate, user.lastEmailChangeDate, user.deactivationDate)
+                        .returningResult(USERS.ID)
+                        .fetchOne()
+        
+        return user.copy(id = result?.get(USERS.ID))
     }
 
-    fun updateUser(user: User): Mono&lt;User&gt; {
-        return Mono.fromCallable {
-            val updatedRows = dsl.update(USERS)
-                .set(USERS.NAME, user.name)
-                .set(USERS.EMAIL, user.email)
-                .set(USERS.IS_ADMIN, user.isAdmin)
-                .set(USERS.IS_ACTIVE, user.isActive)
-                .set(USERS.LAST_EMAIL_CHANGE_DATE, user.lastEmailChangeDate)
-                .set(USERS.DEACTIVATION_DATE, user.deactivationDate)
-                .where(USERS.ID.eq(user.id))
-                .execute()
-            if (updatedRows > 0) user else throw NoSuchElementException("User not found")
-        }.subscribeOn(Schedulers.boundedElastic())
+    fun updateUser(user: User): User {
+        val updatedRows = dsl.update(USERS)
+                             .set(USERS.NAME, user.name)
+                             .set(USERS.EMAIL, user.email)
+                             .set(USERS.IS_ADMIN, user.isAdmin)
+                             .set(USERS.IS_ACTIVE, user.isActive)
+                             .set(USERS.LAST_EMAIL_CHANGE_DATE, user.lastEmailChangeDate)
+                             .set(USERS.DEACTIVATION_DATE, user.deactivationDate)
+                             .where(USERS.ID.eq(user.id))
+                             .execute()
+        
+        if (updatedRows == 0) throw NoSuchElementException("User not found")
+        return user
     }
 }
     </code></pre>
@@ -114,26 +103,36 @@ class UserRepository(private val dsl: DSLContext) {
     <h3>Service</h3>
     <pre><code>
 import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Isolation
+import org.springframework.transaction.annotation.Transactional
 import reactor.core.publisher.Flux
 import reactor.core.publisher.Mono
+import reactor.core.scheduler.Schedulers
 import java.time.LocalDate
 
 @Service
 class UserService(private val userRepository: UserRepository) {
 
+    @Transactional(readOnly = true)
     fun getAllUsers(): Flux&lt;User&gt; {
-        return userRepository.findAllUsers()
+        return Mono.fromCallable { userRepository.findAllUsers() }
+                   .flatMapMany { Flux.fromIterable(it) }
+                   .subscribeOn(Schedulers.boundedElastic())
     }
 
+    @Transactional(readOnly = true, isolation = Isolation.READ_COMMITTED)
     fun getUserById(id: Int): Mono&lt;User&gt; {
-        return userRepository.findUserById(id)
-            .switchIfEmpty(Mono.error(NoSuchElementException("Bruker ikke funnet")))
+        return Mono.fromCallable { userRepository.findUserById(id) }
+                   .flatMap { user -> user?.let { Mono.just(it) } ?: Mono.error(NoSuchElementException("Bruker ikke funnet")) }
+                   .subscribeOn(Schedulers.boundedElastic())
     }
 
+    @Transactional(isolation = Isolation.REPEATABLE_READ)
     fun createUser(user: User): Mono&lt;User&gt; {
         return validateNewUser(user)
-            .flatMap { validatedUser ->
-                userRepository.saveUser(validatedUser)
+            .flatMap { validatedUser -> 
+                Mono.fromCallable { userRepository.saveUser(validatedUser) }
+                    .subscribeOn(Schedulers.boundedElastic())
             }
             .flatMap { savedUser ->
                 sendWelcomeEmail(savedUser)
@@ -141,22 +140,26 @@ class UserService(private val userRepository: UserRepository) {
             }
     }
 
+    @Transactional(isolation = Isolation.SERIALIZABLE)
     fun updateUserEmail(id: Int, newEmail: String): Mono&lt;User&gt; {
         return getUserById(id)
             .filter { user -> isEmailChangeAllowed(user) }
             .flatMap { user ->
                 val updatedUser = user.copy(email = newEmail, lastEmailChangeDate = LocalDate.now())
-                userRepository.updateUser(updatedUser)
+                Mono.fromCallable { userRepository.updateUser(updatedUser) }
+                    .subscribeOn(Schedulers.boundedElastic())
             }
-            .switchIfEmpty(Mono.error(IllegalStateException("E-postendring ikke tillatt for denne brukeren")))
+            .switchIfEmpty(Mono.error(IllegalStateException("E-postendring ikke tillatt")))
     }
 
+    @Transactional(isolation = Isolation.REPEATABLE_READ)
     fun deactivateUser(id: Int): Mono&lt;User&gt; {
         return getUserById(id)
-            .filter { user -> !user.isAdmin } // Domeneregel: Administratorer kan ikke deaktiveres
+            .filter { user -> !user.isAdmin }
             .flatMap { user ->
                 val deactivatedUser = user.copy(isActive = false, deactivationDate = LocalDate.now())
-                userRepository.updateUser(deactivatedUser)
+                Mono.fromCallable { userRepository.updateUser(deactivatedUser) }
+                    .subscribeOn(Schedulers.boundedElastic())
             }
             .switchIfEmpty(Mono.error(IllegalStateException("Kan ikke deaktivere en administratorbruker")))
     }
@@ -169,66 +172,44 @@ class UserService(private val userRepository: UserRepository) {
     }
 
     private fun isEmailChangeAllowed(user: User): Boolean {
-        // Domeneregel: E-post kan kun endres hvis brukeren er aktiv og ikke har endret e-post i løpet av siste 30 dager
         return user.isActive && (user.lastEmailChangeDate?.plusDays(30)?.isBefore(LocalDate.now()) ?: true)
     }
 
     private fun sendWelcomeEmail(user: User): Mono&lt;Void&gt; {
-        // Simulerer sending av velkomst-e-post
-        println("Sender velkomst-e-post til ${user.email}")
-        return Mono.empty()
+        return Mono.fromRunnable { println("Sender velkomst-e-post til ${user.email}") }
+                   .subscribeOn(Schedulers.boundedElastic())
+                   .then()
     }
 }
     </code></pre>
 
-    <h2>Forklaring</h2>
+    <h2>Forklaring av Endringer</h2>
 
     <h3>Repository-laget:</h3>
     <ul>
-        <li>Bruker jOOQ for å utføre databaseoperasjoner.</li>
-        <li>Returnerer Flux eller Mono for å støtte reaktiv programmering.</li>
-        <li>Bruker <code>subscribeOn(Schedulers.boundedElastic())</code> for å håndtere potensielt blokkerende operasjoner.</li>
+        <li>Returnerer nå synkrone resultater (List&lt;User&gt;, User?, User) i stedet for Flux eller Mono.</li>
+        <li>Fjernet all bruk av Mono.fromCallable og subscribeOn, da dette nå håndteres i Service-laget.</li>
     </ul>
 
     <h3>Service-laget:</h3>
     <ul>
-        <li>Inneholder forretningslogikk og domeneregler.</li>
-        <li>Kaller repository-metoder for dataaksess.</li>
-        <li>Implementerer domeneregler som brukervalidering, e-postendringsbegrensninger og deaktivering av brukere.</li>
-        <li>Håndterer feilsituasjoner og kaster domenespesifikke feil.</li>
+        <li>Bruker nå Mono.fromCallable for å konvertere synkrone repository-kall til reaktive typer.</li>
+        <li>Implementerer subscribeOn(Schedulers.boundedElastic()) for hver databaseoperasjon.</li>
+        <li>Beholder ansvaret for transaksjonshåndtering og isolasjonsnivåer.</li>
+        <li>Håndterer fortsatt forretningslogikk og domeneregler.</li>
     </ul>
 
-    <h3>Domeneregler i Service-laget:</h3>
-    <ul>
-        <li><strong>Brukervalidering ved opprettelse:</strong> Sjekker at brukernavnet er minst 2 tegn langt og at e-postadressen inneholder '@'.</li>
-        <li><strong>Velkomst-e-post:</strong> Simulerer sending av en velkomst-e-post etter brukeropprettelse.</li>
-        <li><strong>Begrensning på e-postendring:</strong> E-post kan kun endres for aktive brukere, og ikke oftere enn hver 30. dag.</li>
-        <li><strong>Deaktivering av brukere:</strong> Tillater ikke deaktivering av administratorbrukere.</li>
-        <li><strong>Tilstandsbasert logikk:</strong> Bruker felt som <code>isAdmin</code>, <code>isActive</code>, og ulike datoer for å implementere tilstandsbaserte forretningsregler.</li>
-    </ul>
-
-    <h3>Reaktiv Tilnærming:</h3>
-    <ul>
-        <li>Bruker Flux for kolleksjoner (f.eks. <code>getAllUsers</code>).</li>
-        <li>Bruker Mono for enkeltresultater (f.eks. <code>getUserById</code>, <code>createUser</code>).</li>
-        <li>Opprettholder reaktiv flyt gjennom hele prosessen, fra dataaksess til forretningslogikk.</li>
-    </ul>
-
-    <h2>Fordeler med denne tilnærmingen</h2>
+    <h2>Fordeler med denne Tilnærmingen</h2>
     <ol>
-        <li><strong>Separasjon av ansvar:</strong> Forretningslogikk er klart adskilt fra dataaksess-laget (Repository).</li>
-        <li><strong>Domenedrevet design:</strong> Service-laget representerer og håndhever domeneregler.</li>
-        <li><strong>Reaktiv håndtering:</strong> Bruk av Mono og Flux opprettholder reaktiv flyt gjennom hele prosessen.</li>
-        <li><strong>Feilhåndtering:</strong> Domenespesifikke feil kastes og kan håndteres på passende måter høyere opp i applikasjonen.</li>
-        <li><strong>Testbarhet:</strong> Forretningsregler kan enkelt testes i isolasjon fra dataaksess-laget.</li>
-        <li><strong>Fleksibilitet:</strong> Enklere å endre eller utvide forretningslogikk uten å påvirke dataaksess-laget.</li>
+        <li><strong>Tydeligere Ansvarsfordeling:</strong> Repository-laget fokuserer nå kun på dataaksess, mens Service-laget håndterer reaktivitet og schedulering.</li>
+        <li><strong>Fleksibilitet i Transaksjoner:</strong> Gir mer kontroll over når og hvordan operasjoner scheduleres innenfor transaksjoner.</li>
+        <li><strong>Enklere Testing:</strong> Repository-laget kan nå testes uten å måtte håndtere reaktive typer.</li>
+        <li><strong>Konsistent Reaktiv Grensesnitt:</strong> Service-laget opprettholder et fullstendig reaktivt grensesnitt mot resten av applikasjonen.</li>
+        <li><strong>Bedre Ressurshåndtering:</strong> Schedulering håndteres eksplisitt i Service-laget, noe som gir bedre kontroll over ressursbruk.</li>
     </ol>
 
-    <h2>Konklusjon</h2>
-    <p>Denne implementasjonen demonstrerer en klar separasjon mellom Service- og Repository-lag i en Spring Boot-applikasjon, samtidig som den utnytter fordelene med reaktiv programmering og jOOQ's type-sikre SQL-bygging. Service-laget inneholder rik domenespesifikk logikk, mens Repository-laget fokuserer på effektiv dataaksess. Dette resulterer i en modulær, testbar og skalerbar arkitektur som er godt egnet for komplekse forretningsapplikasjoner.</p>
-
     <div class="note">
-        <strong>Merk:</strong> I en produksjonsapplikasjon bør ytterligere aspekter vurderes, som caching, mer omfattende feilhåndtering, logging, og sikkerhetsimplementasjoner.
+        <strong>Merk:</strong> Denne tilnærmingen kan føre til litt mer kode i Service-laget, men gir generelt en renere separasjon av ansvar og mer eksplisitt kontroll over reaktiv oppførsel og ressursbruk.
     </div>
 </body>
 </html>
