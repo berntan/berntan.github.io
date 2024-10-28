@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Transaksjonshåndtering i Spring med @Transactional</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        pre {
+            background-color: #f5f5f5;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+        code {
+            font-family: Consolas, Monaco, 'Courier New', monospace;
+            background-color: #f5f5f5;
+            padding: 2px 4px;
+            border-radius: 3px;
+        }
+        h1, h2, h3 {
+            color: #2c3e50;
+        }
+        h1 {
+            border-bottom: 2px solid #eee;
+            padding-bottom: 10px;
+        }
+        .isolation-level {
+            margin: 20px 0;
+            padding: 15px;
+            border-left: 4px solid #3498db;
+            background-color: #f8f9fa;
+        }
+        .best-practice {
+            background-color: #e8f4f8;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 12px;
+            text-align: left;
+        }
+        th {
+            background-color: #f5f5f5;
+        }
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        .anomaly-section {
+            margin: 30px 0;
+            padding: 20px;
+            border-radius: 5px;
+            background-color: #f8f9fa;
+            border-left: 4px solid #3498db;
+        }
+        .consequences {
+            background-color: #fff3cd;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 15px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>Transaksjonshåndtering i Spring med @Transactional</h1>
+
+    <h2>@Transactional-annotasjonen</h2>
+    <p>@Transactional er en viktig annotasjon i Spring som brukes for å håndtere databasetransaksjoner. Den kan brukes på både klasse- og metodenivå. Når den brukes på klassenivå, vil alle metodene i klassen arve transaksjonsegenskapene.</p>
+
+    <pre><code>@Transactional
+fun lagreKunde(kunde: Kunde) {
+    // Metoden kjører i en transaksjon
+}</code></pre>
+
+    <h2>Isolasjonsnivåer</h2>
+    <p>Spring støtter følgende isolasjonsnivåer gjennom <code>@Transactional(isolation = Isolation.XXX)</code>:</p>
+
+    <div class="isolation-level">
+        <h3>1. READ_UNCOMMITTED</h3>
+        <ul>
+            <li>Laveste isolasjonsnivå</li>
+            <li>Tillater "dirty reads" - en transaksjon kan lese ucommittede endringer fra andre transaksjoner</li>
+            <li>Kan gi inkonsistente data</li>
+            <li>Brukes sjelden i praksis</li>
+            <li>Eksempel bruksområde: Når ytelse er kritisk og du kan tolerere inkonsistente data</li>
+        </ul>
+    </div>
+
+    <div class="isolation-level">
+        <h3>2. READ_COMMITTED (Standard i PostgreSQL)</h3>
+        <ul>
+            <li>Hindrer "dirty reads"</li>
+            <li>En transaksjon kan kun lese data som er committed</li>
+            <li>Kan fortsatt oppleve "non-repeatable reads" og "phantom reads"</li>
+            <li>Vanlig valg for mange applikasjoner</li>
+            <li>Eksempel bruksområde: Normale CRUD-operasjoner hvor du trenger basic datakonsistens</li>
+        </ul>
+    </div>
+
+    <div class="isolation-level">
+        <h3>3. REPEATABLE_READ</h3>
+        <ul>
+            <li>Garanterer at hvis en transaksjon leser en rad flere ganger, vil den se samme data hver gang</li>
+            <li>Hindrer "non-repeatable reads"</li>
+            <li>Kan fortsatt oppleve "phantom reads"</li>
+            <li>Eksempel bruksområde: Rapporteringsfunksjoner hvor samme data må leses flere ganger</li>
+        </ul>
+    </div>
+
+    <div class="isolation-level">
+        <h3>4. SERIALIZABLE</h3>
+        <ul>
+            <li>Høyeste isolasjonsnivå</li>
+            <li>Fullstendig isolasjon mellom transaksjoner</li>
+            <li>Hindrer "dirty reads", "non-repeatable reads" og "phantom reads"</li>
+            <li>Kan påvirke ytelsen betydelig</li>
+            <li>Eksempel bruksområde: Finansielle transaksjoner hvor datakonsistens er kritisk</li>
+        </ul>
+    </div>
+
+    <h2>Eksempel på bruk med forskjellige isolasjonsnivåer</h2>
+    <pre><code>@Service
+class KundeService {
+    
+    // Standard isolasjonsnivå (READ_COMMITTED for PostgreSQL)
+    @Transactional
+    fun oppdaterKunde(kunde: Kunde) {
+        // ...
+    }
+    
+    // Høyere isolasjonsnivå for kritiske operasjoner
+    @Transactional(isolation = Isolation.SERIALIZABLE)
+    fun overførPenger(fraKonto: String, tilKonto: String, beløp: BigDecimal) {
+        // ...
+    }
+    
+    // Lavere isolasjonsnivå for read-only operasjoner
+    @Transactional(readOnly = true, isolation = Isolation.READ_COMMITTED)
+    fun hentKundeInfo(kundeId: Long): KundeInfo {
+        // ...
+    }
+}</code></pre>
+
+    <h2>Vanlige problemer og løsninger</h2>
+    
+    <h3>Dirty Reads</h3>
+    <ul>
+        <li>Problem: Lese ucommittede data</li>
+        <li>Løsning: Bruk minst READ_COMMITTED</li>
+    </ul>
+
+    <h3>Non-repeatable Reads</h3>
+    <ul>
+        <li>Problem: Samme spørring gir forskjellige resultater i samme transaksjon</li>
+        <li>Løsning: Bruk REPEATABLE_READ eller høyere</li>
+    </ul>
+
+    <h3>Phantom Reads</h3>
+    <ul>
+        <li>Problem: Nye rader dukker opp i samme spørring innen en transaksjon</li>
+        <li>Løsning: Bruk SERIALIZABLE</li>
+    </ul>
+
+    <h2>Best Practices</h2>
+    <ol>
+        <li>Start med READ_COMMITTED (PostgreSQL default)</li>
+        <li>Øk isolasjonsnivået kun når det er nødvendig</li>
+        <li>Bruk readOnly = true for leseoperasjoner</li>
+        <li>Vær oppmerksom på at høyere isolasjonsnivåer kan føre til:
+            <ul>
+                <li>Redusert samtidighet</li>
+                <li>Økt risiko for deadlocks</li>
+                <li>Dårligere ytelse</li>
+            </ul>
+        </li>
+    </ol>
+
+    <h2>Viktige attributter i @Transactional</h2>
+    <pre><code>@Transactional(
+    isolation = Isolation.READ_COMMITTED,    // Isolasjonsnivå
+    propagation = Propagation.REQUIRED,      // Transaksjonspropagering
+    readOnly = false,                        // Skriverettigheter
+    timeout = -1,                            // Timeout i sekunder
+    rollbackFor = [Exception::class]         // Exceptions som trigger rollback
+)</code></pre>
+
+    <h1>Transaksjonsanomalier i Databaser</h1>
+
+    <div class="anomaly-section">
+        <h2>1. Dirty Reads</h2>
+
+        <h3>Hva er det?</h3>
+        <p>En "dirty read" oppstår når en transaksjon leser data som er endret av en annen transaksjon som ennå ikke er committed. Hvis den andre transaksjonen senere blir rullet tilbake, har den første transaksjonen lest data som "aldri eksisterte".</p>
+
+        <h3>Praktisk Eksempel</h3>
+        <pre><code>-- Transaksjon 1: Overfører penger
+BEGIN;
+UPDATE konto SET saldo = saldo - 1000 WHERE id = 1;  -- Trekker 1000 kr
+-- Ikke committed ennå
+
+-- Transaksjon 2: Leser saldo (samtidig)
+BEGIN;
+SELECT saldo FROM konto WHERE id = 1;  -- Leser den ucommittede saldoen
+-- Kan se den reduserte saldoen før Transaksjon 1 er committed
+
+-- Hvis Transaksjon 1 nå ruller tilbake:
+ROLLBACK;  -- Transaksjon 1 avbrytes
+-- Transaksjon 2 har nå lest en verdi som aldri egentlig eksisterte</code></pre>
+
+        <div class="consequences">
+            <h3>Konsekvenser</h3>
+            <ul>
+                <li>Kan føre til feil i forretningslogikk</li>
+                <li>Rapporter kan vise feil data</li>
+                <li>Beslutninger kan tas på grunnlag av ugyldige data</li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="anomaly-section">
+        <h2>2. Non-repeatable Reads</h2>
+
+        <h3>Hva er det?</h3>
+        <p>En "non-repeatable read" oppstår når en transaksjon leser samme data flere ganger, men får forskjellige resultater fordi en annen transaksjon har endret og committed dataene mellom lesningene.</p>
+
+        <h3>Praktisk Eksempel</h3>
+        <pre><code>-- Transaksjon 1: Leser kundedata to ganger
+BEGIN;
+SELECT navn, kredittgrense FROM kunde WHERE id = 1;
+-- Får: navn = 'Ole Hansen', kredittgrense = 10000
+
+-- Transaksjon 2 (samtidig): Oppdaterer kundedata
+BEGIN;
+UPDATE kunde SET kredittgrense = 5000 WHERE id = 1;
+COMMIT;
+
+-- Transaksjon 1 fortsetter:
+SELECT navn, kredittgrense FROM kunde WHERE id = 1;
+-- Får nå: navn = 'Ole Hansen', kredittgrense = 5000
+-- Samme spørring gir forskjellig resultat i samme transaksjon!</code></pre>
+
+        <div class="consequences">
+            <h3>Konsekvenser</h3>
+            <ul>
+                <li>Inkonsistent tilstand innen samme transaksjon</li>
+                <li>Kan påvirke beregninger som krever konsistente data</li>
+                <li>Problematisk for rapportering og analyse</li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="anomaly-section">
+        <h2>3. Phantom Reads</h2>
+
+        <h3>Hva er det?</h3>
+        <p>En "phantom read" oppstår når en transaksjon kjører samme spørring to ganger, og den andre spørringen returnerer rader som ikke var der i den første spørringen (eller mangler rader som var der), fordi en annen transaksjon har lagt til eller slettet rader som matcher søkekriteriene.</p>
+
+        <h3>Praktisk Eksempel</h3>
+        <pre><code>-- Transaksjon 1: Teller antall aktive kunder
+BEGIN;
+SELECT COUNT(*) FROM kunder WHERE status = 'AKTIV';
+-- Får: 100 kunder
+
+-- Transaksjon 2 (samtidig): Legger til ny kunde
+BEGIN;
+INSERT INTO kunder (navn, status) VALUES ('Ny Kunde', 'AKTIV');
+COMMIT;
+
+-- Transaksjon 1 fortsetter:
+SELECT COUNT(*) FROM kunder WHERE status = 'AKTIV';
+-- Får nå: 101 kunder
+-- "Phantom" rad har dukket opp!</code></pre>
+
+        <div class="consequences">
+            <h3>Konsekvenser</h3>
+            <ul>
+                <li>Problematisk for rapporter som krever konsistent datasett</li>
+                <li>Kan påvirke aggregeringer og summeringer</li>
+                <li>Utfordrende for batch-prosessering</li>
+            </ul>
+        </div>
+    </div>
+
+    <h2>Hvordan Unngå Problemene</h2>
+
+    <h3>Dirty Reads</h3>
+    <pre><code>@Transactional(isolation = Isolation.READ_COMMITTED)  // Eller høyere
+fun lesKundeData(kundeId: Long): KundeData {
+    return kundeRepository.findById(kundeId)
+}</code></pre>
+
+    <h3>Non-repeatable Reads</h3>
+    <pre><code>@Transactional(isolation = Isolation.REPEATABLE_READ)  // Eller høyere
+fun kalkulerKundeRabatt(kundeId: Long): BigDecimal {
+    val kundeData = kundeRepository.findById(kundeId)
+    // ... flere operasjoner ...
+    val sammeKundeData = kundeRepository.findById(kundeId)  // Garantert samme data
+    return beregnRabatt(kundeData)
+}</code></pre>
+
+    <h3>Phantom Reads</h3>
+    <pre><code>@Transactional(isolation = Isolation.SERIALIZABLE)
+fun genererKunderapport(): Rapport {
+    val antallKunder = kundeRepository.count()
+    // ... flere spørringer ...
+    val kundeliste = kundeRepository.findAll()
+    // Garantert at antall kunder matcher kundelisten
+    return lagRapport(antallKunder, kundeliste)
+}</code></pre>
+
+    <h2>Isolasjonsnivå og Anomalier</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Isolasjonsnivå</th>
+                <th>Dirty Reads</th>
+                <th>Non-repeatable Reads</th>
+                <th>Phantom Reads</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>READ_UNCOMMITTED</td>
+                <td>Mulig</td>
+                <td>Mulig</td>
+                <td>Mulig</td>
+            </tr>
+            <tr>
+                <td>READ_COMMITTED</td>
+                <td>Forhindret</td>
+                <td>Mulig</td>
+                <td>Mulig</td>
+            </tr>
+            <tr>
+                <td>REPEATABLE_READ</td>
+                <td>Forhindret</td>
+                <td>Forhindret</td>
+                <td>Mulig</td>
+            </tr>
+            <tr>
+                <td>SERIALIZABLE</td>
+                <td>Forhindret</td>
+                <td>Forhindret</td>
+                <td>Forhindret</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <h2>Best Practices</h2>
+
+    <div class="best-practice">
+        <h3>1. Velg riktig isolasjonsnivå:</h3>
+        <ul>
+            <li>Use READ_COMMITTED for generelle operasjoner</li>
+            <li>REPEATABLE_READ for kritiske leseoperasjoner</li>
+            <li>SERIALIZABLE kun når absolutt nødvendig</li>
+        </ul>
+    </div>
+
+    <div class="best-practice">
+        <h3>2. Optimaliser transaksjonslengde:</h3>
+        <pre><code>// Bra: Kort, fokusert transaksjon
+@Transactional
+fun oppdaterKundeStatus(kundeId: Long, nyStatus: Status) {
+    val kunde = kundeRepository.findById(kundeId)
+    kunde.status = nyStatus
+    kundeRepository.save(kunde)
+}
+
+// Unngå: Lang transaksjon med mange operasjoner
+@Transactional
+fun komplekseProsesseringer() {
+    // Mange tidkrevende operasjoner...
+}</code></pre>
+    </div>
+
+    <div class="best-practice">
+        <h3>3. Bruk readOnly når mulig:</h3>
+        <pre><code>@Transactional(readOnly = true)
+fun hentKundeData(kundeId: Long): KundeDTO {
+    return kundeRepository.findById(kundeId).toDTO()
+}</code></pre>
+    </div>
+  
+</body>
+</html>
