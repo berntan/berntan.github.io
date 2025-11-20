@@ -1,0 +1,114 @@
+<html>
+    <head>
+        <style>
+            body {
+                margin: 3em;
+            }
+            ul {
+                list-style-type: none;
+            }
+            ul li {
+                margin-left: 0;
+                text-indent: -2em;
+            }
+            ul li:before {
+                content: "- ";
+            }
+        </style>
+    </head>
+    <body>
+        <h3>✅ Sjekkliste: Kvalitet og Vurderinger i Utvikling</h3>
+        <ol>
+            <li>
+                Forståelse og Forberedelse
+                <ul>
+                    <li>
+                        Klar Definisjon: Sørg for at du har en dyp forståelse av
+                        problemet eller funksjonaliteten som skal implementeres.
+                    </li>
+                    <li>
+                        Dokumentasjon: Lag et kort oppsummeringsnotat som
+                        beskriver problemet/endringen. Dette er nyttig for deg
+                        selv og nødvendig for en Pull Request (PR).
+                    </li>
+                </ul>
+            </li>
+            <li>
+                Testing som Fundament
+                <ul>
+                    <li>
+                        Test-Først-Tankegang: Før du koder løsningen, skriv en
+                        automatisk test som enten bekrefter feilen (for en bug)
+                        eller definerer den nye atferden (for en funksjon).
+                        Testen skal først feile (dette er viktigst for
+                        feilretting).
+                    </li>
+                    <li>
+                        Unngå Regresjon: Kjør den fullstendige testpakken for å
+                        bekrefte at endringen din ikke har brutt eksisterende
+                        funksjonalitet.
+                    </li>
+                </ul>
+            </li>
+            <li>
+                Kodedesign og Valg
+                <ul>
+                    <li>
+                        Vurder Alternativer: Se forbi den første løsningen.
+                        Evaluer minst to ulike tilnærminger for å sikre at du
+                        velger den mest vedlikeholdsvennlige og effektive.
+                    </li>
+                    <li>
+                        Refleksjon: Vurder koden din kritisk: Er det den reneste
+                        implementeringen? Er navnene klare og hensiktsmessige?
+                    </li>
+                    <li>
+                        Strategisk Perspektiv: Identifiser om oppgaven peker mot
+                        et arkitektonisk valg eller bare er en umiddelbar,
+                        taktisk løsning. Tenk på langsiktig vedlikeholdbarhet.
+                    </li>
+                </ul>
+            </li>
+            <li>
+                Robusthet og Drift
+                <ul>
+                    <li>
+                        Edge Cases: Identifiser og adresser "hva
+                        hvis"-scenarier, som ugyldig input, tomme verdier eller
+                        feilende eksterne avhengigheter.
+                    </li>
+                    <li>
+                        Logging og Feilhåndtering: Sørg for at koden logger
+                        meningsfulle hendelser for enkel feilsøking i
+                        produksjon. Implementer kontrollert feilhåndtering.
+                    </li>
+                    <li>
+                        Ytelse: Gjør en rask vurdering av om endringen
+                        introduserer unødig kompleksitet eller har en stor
+                        negativ innvirkning på ytelsen (f.eks. ved å sjekke
+                        tidskompleksitet).
+                    </li>
+                </ul>
+            </li>
+            <li>
+                Standarder og Gjennomgang
+                <ul>
+                    <li>
+                        Overhold Konvensjoner: Følg teamets etablerte kodestil
+                        og navngivningskonvensjoner.
+                    </li>
+                    <li>
+                        Minimalt Omfang: Hold endringen fokusert på oppgaven.
+                        Unngå å gjøre store, unødvendige endringer i andre deler
+                        av systemet.
+                    </li>
+                    <li>
+                        Klar for PR: Fjern debug-kode og skriv en tydelig Pull
+                        Request-beskrivelse basert på notatet fra steg 1, slik
+                        at gjennomgangen blir rask og effektiv.
+                    </li>
+                </ul>
+            </li>
+        </ol>
+    </body>
+</html>
